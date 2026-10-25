@@ -1,0 +1,14 @@
+{
+  "name": "must-qa-quest-assessment",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "test": "playwright test tests/settlement.spec.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0"
+  }
+}
