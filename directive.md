@@ -148,9 +148,9 @@ No separate lint, type-check, or build script is declared in the current `packag
 
 ## Results/Handoff Appendix
 
-- **GitHub repository:** [Add repository URL]
-- **Loom walkthrough:** [Add Loom video URL]
-- **Playwright run / CI evidence:** [Add CI run URL or attach fresh `npx playwright test` output]
-- **Submission commit / revision:** [Add commit SHA]
+- **GitHub repository:** [Must_qa_quest_assessment](https://github.com/UmarAzamQureshi/Must_qa_quest_assessment)
+- **Loom walkthrough:** [Watch the settlement QA walkthrough](https://www.loom.com/share/2de7dc4e1a7c4b8cbc82ac6f1486812c)
+- **Playwright run / CI evidence:** The directive records a prior local result of **17 passed, 0 failed**. The [settlement test suite](https://github.com/UmarAzamQureshi/Must_qa_quest_assessment/blob/3dc9c19c53e120e6af0a1bcad89b9e143e41a605/tests/settlement.spec.js) is available for review. No CI run or raw test-output artifact is currently available; rerun `npx playwright test` on the final revision and attach its output or CI link.
+- **Submission commit / revision:** [Current published baseline: `3dc9c19c53e120e6af0a1bcad89b9e143e41a605`](https://github.com/UmarAzamQureshi/Must_qa_quest_assessment/commit/3dc9c19c53e120e6af0a1bcad89b9e143e41a605). Replace this with the final submission revision after the completed handoff is published.
 
 > Decision: **READY FOR ASSESSMENT HANDOFF / NOT A PRODUCTION RELEASE.** The checked-out assessment suite passes, but the mock does not provide the durable storage and operational guarantees required for production settlement.
