@@ -23,7 +23,7 @@ npm test
 The `test` script runs the settlement Playwright suite:
 
 ```bash
-npx playwright test tests/settlement.spec.js
+npm test
 ```
 
 To run one test by its title:
@@ -32,7 +32,7 @@ To run one test by its title:
 npx playwright test tests/settlement.spec.js -g "happy path"
 ```
 
-Playwright reports the result in the terminal. The tests run against the local in-memory service; no browser or external service is required by these tests.
+Playwright reports the result in the terminal. The tests run against the local in-memory service; no browser or external service is required by these tests. The suite also has a test-local faulty reference that is expected to fail its one-payout assertion. Playwright marks this demonstration as an expected failure; the corrected-service replay check must pass.
 
 ## Business rules under test
 
@@ -119,6 +119,8 @@ The test cases below are listed in their order in `tests/settlement.spec.js`.
 | 16 | Deadlock and permanent write failure | Transient serialization errors are retried after rollback; a permanent write error leaves no payout, and other items continue. |
 | 17 | Interrupted chunk and resume | After two chunks of ten, a retry resumes at item 20, pays the remaining 30 once, and rejects a changed input fingerprint. |
 
+The 17 rows are behavior scenarios. In addition, the suite runs a deliberately faulty reference case that appends a payout on every attempt; its one-payout regression assertion is expected to fail. This controlled reference demonstrates that the regression condition detects duplicate payouts. It is not a historical or production implementation.
+
 ## Project structure
 
 ```text
@@ -130,7 +132,7 @@ The test cases below are listed in their order in `tests/settlement.spec.js`.
 ├── src/
 │   └── settlementService.js        # Settlement rules and in-memory state
 ├── tests/
-│   └── settlement.spec.js          # 17 behavior-focused regression tests
+│   └── settlement.spec.js          # 17 behavior scenarios plus faulty-reference proof
 ├── settlement-test-case-document.md
 ├── settlement-test-case-document.xlsx
 ├── directive.md                    # Assessment scope and requirements

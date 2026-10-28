@@ -27,14 +27,20 @@ The package is an in-memory mock and automated assessment harness. It does not i
 5. Notification failure must be surfaced as a notification failure without undoing a committed payout.
 6. Invalid schedule values, malformed tasks, invalid reward amounts, and item-processing errors must be reported deterministically and must not create invalid ledger entries.
 7. Large batches must use bounded chunks; retryable write failures must roll back provisional state; interrupted batch processing must resume without duplicate payouts.
-8. Automated regression tests must be runnable from the project root using `npx playwright test`.
+8. Automated regression tests must be runnable from the project root using `npm test`.
+
+## Assumptions: account and admin changes
+
+- The task's `userId` and `rewardCredits` are treated as the values captured with the submitted task. Account reassignment or reward-setting changes during a settlement run are out of scope; they do not retroactively alter an in-flight batch.
+- The fixture data and settlement rules remain fixed for one batch. The mock rejects changed batch input on cursor resume rather than applying a new account assignment or reward setting partway through.
+- The service does not model an admin console or production account-management policy. These are explicit test assumptions, not verified product behavior.
 
 ## Actionable Defect Report
 
 ### Defect under assessment: duplicate payout risk on retry or replay
 
 **Classification:** High-impact financial-integrity failure mode; primary assessment risk  
-**Status:** The current mock's regression tests pass. A defective baseline or production incident was not supplied, so the historical occurrence of this defect is unverified.
+**Status:** The current mock passes the replay regression. A test-local faulty reference intentionally omits idempotency and fails the same one-payout assertion. This reference demonstrates the failure mode; it is not a historical build, production implementation, or evidence of an actual incident.
 
 #### Reproduction steps for the failure mode
 
@@ -43,11 +49,11 @@ The current regression scenario in `tests/settlement.spec.js` exercises the safe
 1. Seed one valid task in the weekly settlement window.
 2. Trigger settlement for the valid Tuesday 09:00 UTC run.
 3. Trigger settlement again for the same run after the first attempt has returned.
-4. Compare the first and second attempt's payouts, duplicate records, ledger count, and total credits.
+4. Compare the first and second attempt's payouts, duplicate records, ledger count, and total credits. The current mock returns no new payout on replay.
 
 The concurrent regression uses a deferred notification to hold the first settlement in progress, then starts a second request with the same batch ID and verifies that the second request conflicts rather than issuing a second payout.
 
-To reproduce the **unsafe failure mode** on a defective implementation, the same scenarios would result in the repeated task being inserted or credited again. No unsafe baseline is available in this workspace to execute or claim as observed.
+To demonstrate the **unsafe failure mode**, run the test titled `faulty reference: replay creates a duplicate payout (regression assertion fails)`. Its synthetic reference appends a payout on every call without checking task identity. The test expects one payout, so it is reported as an expected failure. The adjacent retry regression runs against `SettlementService` and is expected to pass, showing the corrected behavior. This is a deliberately bounded reference model, not a claim that the real service historically contained this defect.
 
 #### Expected vs. actual behavior
 
@@ -67,20 +73,19 @@ The underlying design hazard is treating each delivery attempt as a new instruct
 
 The current mock protects against this assessment scenario with task-ID checks against the ledger, a settlement-in-progress conflict guard, and batch cursor/fingerprint state for resumable processing. Those controls demonstrate intended behavior inside one process and do not prove durability or cross-process safety.
 
-#### Evidence from test runs
+#### Regression evidence
 
-The following evidence is from the verified local Playwright run:
-
-- Command: `npx playwright test`
-- Result: **17 passed, 0 failed** (one worker; reported duration 708 ms)
-- Relevant test coverage:
+- **Faulty reference:** two settlement attempts append two ledger entries for one task; the one-entry regression assertion fails as intended and is marked as an expected failure by Playwright.
+- - **Corrected mock:** the retry regression in `tests/settlement.spec.js` asserts one ledger entry and 10 total credits after replay; rerun the suite on the final revision to confirm the current result.
+- The suite therefore contains 17 corrected-behavior checks plus one expected-failure demonstration of the unguarded reference model. The expected failure is not a failing product test.
+- Relevant additional coverage:
   - duplicate task IDs within a batch produce one payout;
   - replay after settlement does not pay the task twice;
   - concurrent identical batches conflict without double-crediting;
   - deadlock retry rollback preserves ledger integrity; and
   - interrupted chunk processing resumes without duplicate payouts.
 
-This is regression evidence for the checked-out mock and test fixtures only. It is not evidence that a production incident occurred or that production systems are protected.
+Run `npm test` from the project root. Confirm the faulty-reference case is listed as an expected failure and the corrected replay case passes. Record the actual terminal summary in the handoff; do not describe the synthetic baseline as a historical reproduction. This is evidence for the checked-out mock and test fixtures only, not evidence that a production incident occurred or that production systems are protected.
 
 #### Proposed architectural fix for production
 
@@ -105,19 +110,18 @@ This is regression evidence for the checked-out mock and test fixtures only. It 
 
 The assessment release gate is:
 
-- [ ] Run `npx playwright test` from the project root.
-- [ ] Block assessment sign-off if the command exits nonzero, any of the 17 settlement scenarios fail, or expected test files/fixtures are missing.
-- [ ] Review the Playwright output and confirm the executed count is 17, with no skipped or unexpectedly filtered settlement cases.
+- [ ] Run `npm test` from the project root.
+- [ ] Block assessment sign-off if the command exits nonzero, any of the 17 corrected-behavior checks fail, the faulty-reference case is not reported as an expected failure, or required test files/fixtures are missing.
+- [ ] Review Playwright output and confirm all 18 cases execute: 17 passing corrected-behavior checks and one expected-failure demonstration.
 - [ ] Confirm the regression suite covers payout idempotency, UTC boundaries, notification isolation, ledger integrity, concurrency, batch recovery, and transaction retry behavior.
 
 No separate lint, type-check, or build script is declared in the current `package.json`; do not imply those checks ran. Add them as explicit CI gates if required by the production repository.
 
 ### Assessment verification recorded
 
-- The complete command `npx playwright test` was run from the project root.
-- Outcome: **17 passed, 0 failed**.
-- The current suite includes the 17 named scenarios in `tests/settlement.spec.js`.
-- The test result verifies the local mock behavior at the time of the run; rerun the command on the submission commit or CI environment before final sign-off.
+- The current suite includes 17 corrected-behavior checks and one test-local faulty-reference demonstration in `tests/settlement.spec.js`.
+- The faulty-reference test is intentionally marked as an expected failure; it must not be mistaken for a regression in the corrected mock.
+- Run `npm test` on the final submission revision and record its actual result here or attach the raw output/CI link before sign-off.
 
 ### Remaining gaps before production release
 
@@ -131,11 +135,11 @@ No separate lint, type-check, or build script is declared in the current `packag
 ### Reviewer handoff instructions
 
 1. Open the project root and read [intent.md](./intent.md) for prioritization, assumptions, and treatment of uncertainty.
-2. Review [tests/settlement.spec.js](./tests/settlement.spec.js) for the 17 executable scenarios.
+2. Review [tests/settlement.spec.js](./tests/settlement.spec.js) for the 17 behavior scenarios and the faulty-reference expected-failure proof.
 3. Review [fixtures/settlementFixtures.js](./fixtures/settlementFixtures.js) for deterministic test setup and seeded scenario data.
 4. Review [pages/SettlementServiceFacade.js](./pages/SettlementServiceFacade.js) for the test-facing API.
 5. Review [src/settlementService.js](./src/settlementService.js) for the in-memory mock implementation and its limits.
-6. From the root, run `npx playwright test` and retain the command output (or CI run URL) with the submission. The tests are the source of truth for the current run; do not treat a stale generated report as a substitute for rerunning.
+6. From the root, run `npm test` and retain the command output (or CI run URL) with the submission. Confirm 17 behavior checks pass and the faulty reference is marked as an expected failure. The tests are the source of truth for the current run; do not treat a stale generated report as a substitute for rerunning.
 7. Treat the result as assessment readiness only. Complete the listed production gaps and review them with the responsible engineering, finance, and operations owners before any production release.
 
 ### Completion criteria
@@ -143,14 +147,14 @@ No separate lint, type-check, or build script is declared in the current `packag
 - [x] Intent document ranks at least three risks by user impact, potential frequency, and effort, and justifies the primary risk.
 - [x] Documentation distinguishes assumptions and test evidence from unverified incident history.
 - [x] Directive documents scope, requirements, defect report, release gates, remaining gaps, and handoff steps.
-- [x] All 17 Playwright test cases are present and pass with `npx playwright test`.
+- [ ] The corrected behavior checks pass and the faulty reference produces the expected failing assertion under `npm test`.
 - [ ] Production release readiness: **not met by this assessment alone**; close the production gaps above.
 
 ## Results/Handoff Appendix
 
 - **GitHub repository:** [Must_qa_quest_assessment](https://github.com/UmarAzamQureshi/Must_qa_quest_assessment)
 - **Loom walkthrough:** [Watch the settlement QA walkthrough](https://www.loom.com/share/2de7dc4e1a7c4b8cbc82ac6f1486812c)
-- **Playwright run / CI evidence:** The directive records a prior local result of **17 passed, 0 failed**. The [settlement test suite](https://github.com/UmarAzamQureshi/Must_qa_quest_assessment/blob/3dc9c19c53e120e6af0a1bcad89b9e143e41a605/tests/settlement.spec.js) is available for review. No CI run or raw test-output artifact is currently available; rerun `npx playwright test` on the final revision and attach its output or CI link.
+- **Playwright run / CI evidence:** The [settlement test suite](https://github.com/UmarAzamQureshi/Must_qa_quest_assessment/blob/3dc9c19c53e120e6af0a1bcad89b9e143e41a605/tests/settlement.spec.js) includes the faulty-reference expected failure and corrected replay check. No CI run or raw output for this revision is attached yet; run `npm test` on the final revision and add its actual output or CI link.
 - **Submission commit / revision:** [Current published baseline: `3dc9c19c53e120e6af0a1bcad89b9e143e41a605`](https://github.com/UmarAzamQureshi/Must_qa_quest_assessment/commit/3dc9c19c53e120e6af0a1bcad89b9e143e41a605). Replace this with the final submission revision after the completed handoff is published.
 
-> Decision: **READY FOR ASSESSMENT HANDOFF / NOT A PRODUCTION RELEASE.** The checked-out assessment suite passes, but the mock does not provide the durable storage and operational guarantees required for production settlement.
+> Decision: **ASSESSMENT HANDOFF PENDING FINAL TEST EVIDENCE / NOT A PRODUCTION RELEASE.** The mock is not production-ready; run the documented suite on the final revision and attach the actual output before treating the assessment handoff as complete.

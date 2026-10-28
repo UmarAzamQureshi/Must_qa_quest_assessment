@@ -149,6 +149,28 @@ test.describe('Rewards settlement dashboard', () => {
     expect(settlementDashboard.getTaskState(retryBatch[0].taskId).status).toBe('paid');
   });
 
+  test('faulty reference: replay creates a duplicate payout (regression assertion fails)', async ({
+    retryBatch,
+  }) => {
+    test.fail(true, 'This intentionally faulty reference has no idempotency guard');
+
+    const faultyLedger = [];
+    const faultySettle = async (task) => {
+      const payout = {
+        taskId: task.taskId,
+        credits: WEEKLY_REWARD_CREDITS,
+        status: 'paid',
+      };
+      faultyLedger.push(payout);
+      return payout;
+    };
+
+    await faultySettle(retryBatch[0]);
+    await faultySettle(retryBatch[0]);
+
+    expect(faultyLedger.filter(({ taskId }) => taskId === retryBatch[0].taskId)).toHaveLength(1);
+  });
+
   test('notification failure does not reverse the successful credit payout', async ({
     settlementService,
     settlementDashboard,
